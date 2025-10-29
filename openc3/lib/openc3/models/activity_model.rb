@@ -66,16 +66,16 @@ module OpenC3
     end
 
     # @return [String|nil] String of the saved json or nil if score not found under primary_key
-    def self.score(name:, score:, scope:, uuid: nil)
+    def self.score(name:, score:, scope:, uuid: nil, validate: true)
       values = Store.zrangebyscore("#{scope}#{PRIMARY_KEY}__#{name}", score, score)
       if values and values.length > 0
         if uuid
           values.each do |value|
-            activity = ActivityModel.from_json(value, name: name, scope: scope)
+            activity = ActivityModel.from_json(value, name: name, scope: scope, validate: validate)
             return activity if activity.uuid == uuid
           end
         else
-          return ActivityModel.from_json(values[0], name: name, scope: scope)
+          return ActivityModel.from_json(values[0], name: name, scope: scope, validate: validate)
         end
       end
       return nil
@@ -153,10 +153,10 @@ module OpenC3
     end
 
     # @return [ActivityModel] Model generated from the passed JSON
-    def self.from_json(json, name:, scope:)
+    def self.from_json(json, name:, scope:, validate: true)
       json = JSON.parse(json, allow_nan: true, create_additions: true) if String === json
       raise "json data is nil" if json.nil?
-      self.new(**json.transform_keys(&:to_sym), name: name, scope: scope)
+      self.new(**json.transform_keys(&:to_sym), name: name, scope: scope, validate: validate)
     end
 
     attr_reader :start, :stop, :kind, :data, :fulfillment, :uuid, :events, :recurring
@@ -172,7 +172,8 @@ module OpenC3
       fulfillment: nil,
       uuid: nil,
       events: nil,
-      recurring: {}
+      recurring: {},
+      validate: true
     )
       super("#{scope}#{PRIMARY_KEY}__#{name}", name: name, scope: scope)
       # Validate everything that isn't already in Model
@@ -185,6 +186,7 @@ module OpenC3
         uuid: uuid,
         events: events,
         recurring: recurring,
+        validate: validate
       )
       @updated_at = updated_at
     end
@@ -251,9 +253,9 @@ module OpenC3
     end
 
     # Set the values of the instance, @start, @kind, @data, @events...
-    def set_input(start:, stop:, kind: nil, data: nil, uuid: nil, events: nil, fulfillment: nil, recurring: nil)
+    def set_input(start:, stop:, kind: nil, data: nil, uuid: nil, events: nil, fulfillment: nil, recurring: nil, validate: true)
       kind = kind.to_s.downcase
-      validate_input(start: start, stop: stop, kind: kind, data: data)
+      validate_input(start: start, stop: stop, kind: kind, data: data) if validate
       @start = start
       @stop = stop
       @fulfillment = fulfillment.nil? ? false : fulfillment
